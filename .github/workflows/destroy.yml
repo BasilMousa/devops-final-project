@@ -34,9 +34,31 @@ jobs:
         with:
           terraform_version: "1.6.0"
 
+      - name: Download Terraform state (if exists)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: terraform-state
+          path: terraform/
+
+      - name: Check for local state file
+        working-directory: terraform
+        run: |
+          if [ -f terraform.tfstate ]; then
+            echo "✓ State file found"
+            terraform show -no-color || echo "No resources in state"
+          else
+            echo "⚠ No state file - will attempt to import existing resources"
+          fi
+
       - name: Terraform Init
         working-directory: terraform
         run: terraform init
+
+      - name: Terraform Refresh
+        working-directory: terraform
+        run: terraform refresh
+        continue-on-error: true
 
       - name: Terraform Destroy
         working-directory: terraform
@@ -46,3 +68,33 @@ jobs:
         run: |
           echo "Infrastructure destroyed successfully!"
           echo "All AWS resources have been removed."
+          
+      - name: Manual cleanup check (if destroy failed)
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo "⚠ Terraform destroy failed!"
+          echo "=========================================="
+          echo ""
+          echo "Manual cleanup required. Run these commands:"
+          echo ""
+          echo "# Find resources by tag:"
+          echo "aws ec2 describe-instances --filters 'Name=tag:Name,Values=jewelry-shop-*' --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==\`Name\`].Value|[0]]' --output table"
+          echo ""
+          echo "# Terminate EC2 instances:"
+          echo "aws ec2 terminate-instances --instance-ids <instance-id-1> <instance-id-2> <instance-id-3>"
+          echo ""
+          echo "# Delete ALB:"
+          echo "aws elbv2 describe-load-balancers --names jewelry-shop-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text | xargs -I {} aws elbv2 delete-load-balancer --load-balancer-arn {}"
+          echo ""
+          echo "# Delete target group:"
+          echo "aws elbv2 describe-target-groups --names jewelry-shop-k8s-tg --query 'TargetGroups[0].TargetGroupArn' --output text | xargs -I {} aws elbv2 delete-target-group --target-group-arn {}"
+          echo ""
+          echo "# Delete security groups (after EC2 terminated):"
+          echo "aws ec2 describe-security-groups --filters 'Name=tag:Name,Values=jewelry-shop-*' --query 'SecurityGroups[*].[GroupId,GroupName]' --output table"
+          echo "aws ec2 delete-security-group --group-id <sg-id>"
+          echo ""
+          echo "# Delete VPC (after all resources deleted):"
+          echo "aws ec2 describe-vpcs --filters 'Name=tag:Name,Values=jewelry-shop-vpc' --query 'Vpcs[0].VpcId' --output text | xargs -I {} aws ec2 delete-vpc --vpc-id {}"
+          echo ""
+          echo "=========================================="
