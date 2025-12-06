@@ -165,6 +165,9 @@ jobs:
       - name: Save Terraform state
         uses: actions/upload-artifact@v4
         with:
+          name: terraform-state
+          path: terraform/terraform.tfstate
+
   # Job 4: Configure Kubernetes cluster with Ansible
   ansible:
     name: Ansible K8s Setup
@@ -175,9 +178,6 @@ jobs:
       needs.terraform.result == 'success' &&
       (github.event_name == 'push' || 
        (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_infrastructure == 'true'))
-    if: |
-      github.event_name == 'workflow_dispatch' && 
-      github.event.inputs.deploy_infrastructure == 'true'
     
     steps:
       - name: Checkout code
@@ -265,8 +265,6 @@ jobs:
           if [ "${{ github.event_name }}" == "push" ] || [ "${{ github.event.inputs.deploy_infrastructure }}" == "true" ]; then
             echo "ip=${{ needs.terraform.outputs.k8s_master_ip }}" >> $GITHUB_OUTPUT
           else
-            echo "ip=${{ secrets.K8S_MASTER_IP }}" >> $GITHUB_OUTPUT
-          fise
             echo "ip=${{ secrets.K8S_MASTER_IP }}" >> $GITHUB_OUTPUT
           fi
 
