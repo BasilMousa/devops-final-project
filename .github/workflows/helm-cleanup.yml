@@ -1,0 +1,73 @@
+name: Helm Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      master_ip:
+        description: 'Kubernetes Master IP (public)'
+        required: true
+        type: string
+
+jobs:
+  cleanup:
+    name: Cleanup Helm Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/labsuser.pem
+          chmod 600 ~/.ssh/labsuser.pem
+
+      - name: Check Helm release status
+        run: |
+          echo "Checking for jewelry-shop release..."
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "helm list -a"
+
+      - name: Force cleanup stuck Helm release
+        run: |
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            'if helm list -a | grep -q jewelry-shop; then
+              echo "Found jewelry-shop release, attempting cleanup..."
+              RELEASE_STATUS=$(helm list -a -o json | jq -r ".[] | select(.name==\"jewelry-shop\") | .status")
+              echo "Current status: $RELEASE_STATUS"
+              
+              # Try rollback first
+              echo "Attempting rollback..."
+              helm rollback jewelry-shop 0 || echo "Rollback failed or not applicable"
+              
+              # Force uninstall with no hooks
+              echo "Force uninstalling release..."
+              helm uninstall jewelry-shop --no-hooks || echo "Uninstall with no-hooks failed"
+              
+              # If still exists, delete the release secret
+              if helm list -a | grep -q jewelry-shop; then
+                echo "Release still exists, deleting Helm secret..."
+                kubectl delete secret -l owner=helm,name=jewelry-shop || true
+              fi
+              
+              echo "Cleanup complete"
+            else
+              echo "No jewelry-shop release found"
+            fi'
+
+      - name: Cleanup Kubernetes resources
+        run: |
+          echo "Cleaning up any remaining Kubernetes resources..."
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            'kubectl delete deployment jewelry-shop --ignore-not-found=true
+             kubectl delete svc jewelry-shop --ignore-not-found=true
+             kubectl delete pvc jewelry-shop-pvc --ignore-not-found=true
+             kubectl delete pv jewelry-shop-pv --ignore-not-found=true'
+
+      - name: Verify cleanup
+        run: |
+          echo "Verifying cleanup..."
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "helm list -a && echo '---' && kubectl get all -l app=jewelry-shop"
