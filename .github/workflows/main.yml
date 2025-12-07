@@ -1,12 +1,12 @@
 name: CI/CD Pipeline - Deploy Jewelry Shop
 
 on:
-  #push:
-    #branches:
-      #- main
-  #pull_request:
-    #branches:
-      #- main
+  # push:
+  #   branches:
+  #     - main
+  # pull_request:
+  #   branches:
+  #     - main
   workflow_dispatch:
     inputs:
       deploy_infrastructure:
@@ -259,6 +259,8 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/labsuser.pem
+          chmod 600 ~/.ssh/labsuser.pem
+          
       - name: Get master IP from Terraform or secrets
         id: master_ip
         run: |
@@ -267,33 +269,6 @@ jobs:
           else
             echo "ip=${{ secrets.K8S_MASTER_IP }}" >> $GITHUB_OUTPUT
           fi
-
-      - name: Download kubeconfig
-        if: github.event_name == 'push' || github.event.inputs.deploy_infrastructure == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: kubeconfig
-          path: ~/.kube/
-
-      - name: Setup kubeconfig from secrets
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_infrastructure != 'true'
-        run: |
-          mkdir -p ~/.kube
-          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
-            ubuntu@${{ secrets.K8S_MASTER_IP }} \
-            "sudo cat /etc/kubernetes/admin.conf" > ~/.kube/config
-          chmod 600 ~/.kube/config
-
-      - name: Install kubectl
-        run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-          kubectl version --client
-
-      - name: Install Helm
-        run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          helm version
 
       - name: Get NFS server IP (master private IP)
         id: nfs_ip
@@ -306,33 +281,41 @@ jobs:
 
       - name: Verify cluster connectivity
         run: |
-          kubectl get nodes
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ steps.master_ip.outputs.ip }} \
+            "kubectl get nodes"
 
-      - name: Lint Helm chart
-        working-directory: helm-charts
+      - name: Copy Helm chart to master
         run: |
-          helm lint jewelry-shop
+          scp -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no -r \
+            helm-charts/jewelry-shop \
+            ubuntu@${{ steps.master_ip.outputs.ip }}:~/
 
       - name: Deploy with Helm
-        working-directory: helm-charts
         run: |
-          helm upgrade --install jewelry-shop jewelry-shop \
-            --set image.repository=${{ env.DOCKER_IMAGE }} \
-            --set image.tag=latest \
-            --set persistence.nfsServer=${{ steps.nfs_ip.outputs.ip }} \
-            --wait \
-            --timeout 10m
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ steps.master_ip.outputs.ip }} \
+            "helm upgrade --install jewelry-shop ~/jewelry-shop \
+              --set image.repository=${{ env.DOCKER_IMAGE }} \
+              --set image.tag=latest \
+              --set persistence.nfsServer=${{ steps.nfs_ip.outputs.ip }} \
+              --wait \
+              --timeout 10m"
 
       - name: Verify deployment
         run: |
-          kubectl get pods -l app.kubernetes.io/name=jewelry-shop
-          kubectl get svc jewelry-shop
-          kubectl get pv,pvc
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ steps.master_ip.outputs.ip }} \
+            "kubectl get pods -l app.kubernetes.io/name=jewelry-shop && \
+             kubectl get svc jewelry-shop && \
+             kubectl get pv,pvc"
 
       - name: Get service endpoint
         run: |
           echo "Service deployed successfully!"
-          kubectl get svc jewelry-shop -o wide
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ steps.master_ip.outputs.ip }} \
+            "kubectl get svc jewelry-shop -o wide"
           echo ""
           echo "Access via ALB: http://${{ needs.terraform.outputs.alb_dns || secrets.ALB_DNS_NAME }}"
           echo "Or via NodePort: http://<any-node-ip>:30080"
