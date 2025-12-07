@@ -160,7 +160,7 @@ jobs:
         run: |
           echo "master_ip=$(terraform output -raw k8s_master_public_ip)" >> $GITHUB_OUTPUT
           echo "worker_ips=$(terraform output -json k8s_workers_public_ips)" >> $GITHUB_OUTPUT
-          echo "alb_dns=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
+          echo "alb_dns=$(terraform output -raw load_balancer_dns)" >> $GITHUB_OUTPUT
 
       - name: Save Terraform state
         uses: actions/upload-artifact@v4
