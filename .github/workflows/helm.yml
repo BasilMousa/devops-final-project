@@ -1,0 +1,90 @@
+name: Helm Only Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      master_ip:
+        description: 'Kubernetes Master IP (public)'
+        required: true
+        type: string
+
+env:
+  DOCKER_IMAGE: basilm95/jewelry-shop
+  AWS_REGION: us-east-1
+
+jobs:
+  helm:
+    name: Helm Deployment
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/labsuser.pem
+          chmod 600 ~/.ssh/labsuser.pem
+
+      - name: Setup kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "sudo cat /etc/kubernetes/admin.conf" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          kubectl version --client
+
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          helm version
+
+      - name: Get NFS server IP (master private IP)
+        id: nfs_ip
+        run: |
+          NFS_IP=$(ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "hostname -I | awk '{print \$1}'")
+          echo "ip=$NFS_IP" >> $GITHUB_OUTPUT
+          echo "NFS Server IP: $NFS_IP"
+
+      - name: Verify cluster connectivity
+        run: |
+          kubectl get nodes
+
+      - name: Lint Helm chart
+        working-directory: helm-charts
+        run: |
+          helm lint jewelry-shop
+
+      - name: Deploy with Helm
+        working-directory: helm-charts
+        run: |
+          helm upgrade --install jewelry-shop jewelry-shop \
+            --set image.repository=${{ env.DOCKER_IMAGE }} \
+            --set image.tag=latest \
+            --set persistence.nfsServer=${{ steps.nfs_ip.outputs.ip }} \
+            --wait \
+            --timeout 10m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n default
+          kubectl get svc -n default
+
+      - name: Wait for pods to be ready
+        run: |
+          kubectl wait --for=condition=ready pod -l app=jewelry-shop --timeout=5m
+
+      - name: Get service details
+        run: |
+          kubectl get svc jewelry-shop -o wide
+          echo "---"
+          kubectl describe svc jewelry-shop
