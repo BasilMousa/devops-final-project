@@ -34,6 +34,12 @@ jobs:
             ubuntu@${{ github.event.inputs.master_ip }} \
             "sudo cat /etc/kubernetes/admin.conf" > ~/.kube/config
           chmod 600 ~/.kube/config
+          
+          # Replace private IP with public IP in kubeconfig
+          sed -i "s|https://.*:6443|https://${{ github.event.inputs.master_ip }}:6443|g" ~/.kube/config
+          
+          # Disable certificate verification for GitHub Actions
+          kubectl config set-cluster kubernetes --insecure-skip-tls-verify=true
 
       - name: Install kubectl
         run: |
