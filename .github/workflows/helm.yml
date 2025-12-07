@@ -27,31 +27,6 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/labsuser.pem
           chmod 600 ~/.ssh/labsuser.pem
 
-      - name: Setup kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
-            ubuntu@${{ github.event.inputs.master_ip }} \
-            "sudo cat /etc/kubernetes/admin.conf" > ~/.kube/config
-          chmod 600 ~/.kube/config
-          
-          # Replace private IP with public IP in kubeconfig
-          sed -i "s|https://.*:6443|https://${{ github.event.inputs.master_ip }}:6443|g" ~/.kube/config
-          
-          # Disable certificate verification for GitHub Actions
-          kubectl config set-cluster kubernetes --insecure-skip-tls-verify=true
-
-      - name: Install kubectl
-        run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-          kubectl version --client
-
-      - name: Install Helm
-        run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          helm version
-
       - name: Get NFS server IP (master private IP)
         id: nfs_ip
         run: |
@@ -63,34 +38,41 @@ jobs:
 
       - name: Verify cluster connectivity
         run: |
-          kubectl get nodes
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "kubectl get nodes"
 
-      - name: Lint Helm chart
-        working-directory: helm-charts
+      - name: Copy Helm chart to master
         run: |
-          helm lint jewelry-shop
+          scp -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no -r \
+            helm-charts/jewelry-shop \
+            ubuntu@${{ github.event.inputs.master_ip }}:~/
 
       - name: Deploy with Helm
-        working-directory: helm-charts
         run: |
-          helm upgrade --install jewelry-shop jewelry-shop \
-            --set image.repository=${{ env.DOCKER_IMAGE }} \
-            --set image.tag=latest \
-            --set persistence.nfsServer=${{ steps.nfs_ip.outputs.ip }} \
-            --wait \
-            --timeout 10m
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "helm upgrade --install jewelry-shop ~/jewelry-shop \
+              --set image.repository=${{ env.DOCKER_IMAGE }} \
+              --set image.tag=latest \
+              --set persistence.nfsServer=${{ steps.nfs_ip.outputs.ip }} \
+              --wait \
+              --timeout 10m"
 
       - name: Verify deployment
         run: |
-          kubectl get pods -n default
-          kubectl get svc -n default
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "kubectl get pods -n default && kubectl get svc -n default"
 
       - name: Wait for pods to be ready
         run: |
-          kubectl wait --for=condition=ready pod -l app=jewelry-shop --timeout=5m
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "kubectl wait --for=condition=ready pod -l app=jewelry-shop --timeout=5m"
 
       - name: Get service details
         run: |
-          kubectl get svc jewelry-shop -o wide
-          echo "---"
-          kubectl describe svc jewelry-shop
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "kubectl get svc jewelry-shop -o wide && echo '---' && kubectl describe svc jewelry-shop"
