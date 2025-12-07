@@ -46,7 +46,16 @@ resource "aws_security_group" "k8s_nodes" {
     to_port     = 32767
     protocol    = "tcp"
     cidr_blocks = [var.vpc_cidr]
-    description = "NodePort Services"
+    description = "NodePort Services from VPC"
+  }
+
+  # NodePort from ALB
+  ingress {
+    from_port       = 30000
+    to_port         = 32767
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+    description     = "NodePort Services from ALB"
   }
 
   # Flannel/Calico (pod network)
