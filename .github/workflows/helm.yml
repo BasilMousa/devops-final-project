@@ -50,14 +50,26 @@ jobs:
 
       - name: Deploy with Helm
         run: |
-          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/labsuser.pem \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=3 \
+            -o TCPKeepAlive=yes \
             ubuntu@${{ github.event.inputs.master_ip }} \
             "helm upgrade --install jewelry-shop ~/jewelry-shop \
               --set image.repository=${{ env.DOCKER_IMAGE }} \
               --set image.tag=latest \
               --set persistence.nfsServer=${{ steps.nfs_ip.outputs.ip }} \
-              --wait \
-              --timeout 10m"
+              --timeout 10m \
+              --debug 2>&1 | tee helm-deploy.log; exit \${PIPESTATUS[0]}"
+
+      - name: Check deployment status
+        if: failure()
+        run: |
+          echo "Helm deployment failed. Checking logs..."
+          ssh -i ~/.ssh/labsuser.pem -o StrictHostKeyChecking=no \
+            ubuntu@${{ github.event.inputs.master_ip }} \
+            "cat helm-deploy.log || echo 'No log file found'"
 
       - name: Verify deployment
         run: |
