@@ -1,5 +1,7 @@
 # DevOps Final Project - Jewelry Shop Inventory Management System
 
+***Students Names: Basil Mousa and Avi Astrogano***
+
 **Project Title:** Jewelry Shop Inventory Management System – Full DevOps Pipeline  
 **Repository:** https://github.com/BasilMousa/devops-final-project
 
