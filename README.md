@@ -55,7 +55,7 @@ git clone https://github.com/BasilMousa/devops-final-project
 ### For running the CI/CD pipeline (GitHub Actions + AWS):
 
 **Accounts / Services:**
-- AWS account (AWS Academy Learner Lab recommended)
+- AWS account 
 - Existing EC2 key pair named **`vockey`** in us-east-1 region
 - Docker Hub account
 - GitHub repository with this project
@@ -90,14 +90,14 @@ In your repository, go to: **Settings → Secrets and variables → Actions** an
 |------------             |-------------                    |---------------                                                             |
 | `AWS_ACCESS_KEY_ID`     | AWS access key                  | `AKIAIOSFODNN7EXAMPLE`                                                     |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key                  | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                                 |
-| `AWS_SESSION_TOKEN`     | AWS session token (AWS Academy) | `FwoGZXIvYXdzE...` (long string)                                           |
+| `AWS_SESSION_TOKEN`     | AWS session token (AWS ) | `FwoGZXIvYXdzE...` (long string)                                           |
 | `DOCKER_USERNAME`       | Docker Hub username             | `your_docker_user`                                                  |
 | `DOCKER_PASSWORD`       | Docker Hub password/token       | Your Docker Hub access token                                               |
 | `SSH_PRIVATE_KEY`       | Private key for vockey          | Full content of `labsuser.pem` including `-----BEGIN` and `-----END` lines |
 
 **Important Notes:**
-- For AWS Academy, copy credentials from **AWS Details** (refresh every ~4 hours)
-- `SSH_PRIVATE_KEY` should be the downloaded `labsuser.pem` from AWS Academy
+- For AWS , copy credentials from **AWS Details** (refresh every ~4 hours)
+- `SSH_PRIVATE_KEY` should be the downloaded `labsuser.pem` from AWS 
 - Docker Hub token is recommended over password (Settings → Security → Access Tokens)
 
 ---
@@ -209,7 +209,7 @@ If you want to deploy manually from your local machine:
 
 ### Prerequisites:
 ```bash
-# Download SSH key from AWS Academy
+# Download SSH key from AWS 
 cp ~/Downloads/labsuser.pem ansible/
 chmod 400 ansible/labsuser.pem
 ```
@@ -320,7 +320,7 @@ showmount -e localhost
 
 #### **Pipeline fails on Terraform**
 - Check AWS secrets are correctly configured
-- Verify AWS credentials are not expired (AWS Academy: refresh every 4 hours)
+- Verify AWS credentials are not expired (AWS : refresh every 4 hours)
 - Check IAM permissions for EC2, VPC, ELB operations
 - Ensure `vockey` key pair exists in us-east-1
 
@@ -411,7 +411,7 @@ devops-final-project-main/
 ├── requirements.txt            # Python dependencies
 ├── .dockerignore              # Docker build exclusions
 ├── .gitignore                 # Git exclusions
-└── README.md                  # This file
+└── README.md                  
 ```
 
 ---
@@ -465,7 +465,7 @@ devops-final-project-main/
 ## 15. Security Considerations
 
 - **SSH Keys:** Private key stored as GitHub secret, never committed to repo
-- **AWS Credentials:** Temporary session tokens (AWS Academy), rotated frequently
+- **AWS Credentials:** Temporary session tokens (AWS ), rotated frequently
 - **Docker Registry:** Access token used instead of password
 - **Network Security:** Security groups limit access to required ports only
 - **Container Security:** Application runs as root (required for Apache port 80)
