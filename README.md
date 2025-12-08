@@ -35,8 +35,8 @@ On first start, the app creates **8 dummy jewelry items**, so the UI is ready im
 ## 2. How to Get the Code
 
 ```bash
-git clone [your-repository-url]
-cd devops-final-project-main
+git clone https://github.com/BasilMousa/devops-final-project
+
 ```
 
 **Main components:**
@@ -119,12 +119,11 @@ In your repository, go to: **Settings → Secrets and variables → Actions** an
 6. Click **Run workflow** button.
 7. Wait until all jobs finish (~25-35 minutes for full deployment).
 
-### Automatic run (optional):
+### Automatic run:
 
-Uncomment the `push:` trigger in `.github/workflows/deploy.yml` to run automatically on every push to main branch.
-push to main branch to trigger the CI/CD  workflow
+- comment and push to main branch to trigger the workflow
+
 ---
-
 ## 6. Pipeline Stages (CI/CD Workflow)
 
 The workflow consists of **6 jobs** running on `ubuntu-latest`:
